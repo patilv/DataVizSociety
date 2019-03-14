@@ -1,0 +1,57 @@
+---
+title: "Data Viz Society Members"
+author: "Vivek H. Patil"
+date: "March 13, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+```{r}
+
+members <-read.csv("https://raw.githubusercontent.com/emeeks/datavizsociety/master/challenge_data/dvs_challenge_1_membership_time_space.csv",header=T)
+
+# set.seed(123)
+# nc <- NbClust((members[,3:5]), min.nc=2, max.nc=5, method="kmeans")
+# table(nc$Best.n[1,])
+# barplot(table(nc$Best.n[1,])) 
+
+set.seed(123)
+kmeansdata=kmeans(members[,3:5],2)  # generating 2 clusters 
+
+members = data.frame(members, kmeansdata$cluster)# append cluster assignment
+names(members)[9]="Expertise"
+members$Expertise=as.factor(members$Expertise)
+levels(members$Expertise)=c("Advanced","Beginner")
+
+membermeans=members%>%group_by(Expertise)%>%summarise(Society=mean(society),Data=mean(data),Visualization=mean(visualization))
+
+gather(members[,c(3:5,9)],"Skill","Score",-Expertise)%>%ggplot(.,aes(Score,color=Expertise))+geom_density()+facet_wrap(~Skill)+theme_bw()+ggtitle("Distribution of skill scores in different domains for beginners and advanced members")
+
+gather(membermeans,"Domain","Mean",-Expertise)%>%ggplot(.,aes(Domain,Mean,fill=Expertise))+geom_bar(stat = "identity",position="dodge")+theme_bw()+geom_text(aes(Domain,Mean+.1,label=round(Mean,2)),position = position_dodge(width = 1))+theme_tufte(base_family="sans", base_size=12, ticks=F)+theme(axis.text.y=element_blank())+ylab("")+xlab("")+ggtitle("Mean scores for expertise in different domains") + guides(color=guide_legend(title=""))
+
+members$DateTime=mdy_h(members$date_with_hour)
+
+members%>%group_by(DateTime,Expertise)%>%tally()%>%group_by(Expertise)%>%mutate(Growth=cumsum(n))%>%ggplot(.,aes(DateTime,Growth,color=Expertise,group=Expertise))+geom_line()+scale_x_datetime(breaks=date_breaks("1 day"),date_labels = "%m/%d")+labs(x="Date",y="Number of members")+theme_bw()+ggtitle("Growth in Membership of 2218 members with advanced skills and 1297 members with beginner-level skills ")
+
+#table(members$Expertise)
+
+members$popup=paste("<table><tr><td><b>",members$Expertise,"</b><br>data:", round(members$data,2),"<br>visualization:",round(members$visualization,2),"<br>society:", round(members$society,2),"</td></tr></table>")
+
+
+pal <- colorFactor(c("red", "blue"), domain = c("Advanced", "Beginner"))
+leaflet(members)%>% addProviderTiles(providers$Esri.WorldGrayCanvas)%>%
+     setView(0, 0, zoom = 2) %>%
+  addCircleMarkers(stroke=FALSE, fillOpacity = .5, color=~pal(Expertise), radius=3,popup=~popup)%>%addLegend("topright", pal = pal, values = ~Expertise,
+    opacity = 1
+  )
+
+```
+
